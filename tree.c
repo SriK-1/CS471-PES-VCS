@@ -94,7 +94,7 @@ int tree_serialize(const Tree *tree, void **data_out, size_t *len_out) {
     return 0;
 }
 
-// ─── PHASE 2: STEP 1 ────────────────────────────────────────────────────────
+// ─── PHASE 2: STEP 2 ────────────────────────────────────────────────────────
 
 int tree_from_index(ObjectID *id_out) {
 
@@ -102,23 +102,32 @@ int tree_from_index(ObjectID *id_out) {
     if (index_load(&index) != 0)
         return -1;
 
-    // If no files staged, create empty tree
-    if (index.count == 0) {
+    Tree tree;
+    tree.count = 0;
 
-        Tree empty;
-        empty.count = 0;
+    for (int i = 0; i < index.count; i++) {
 
-        void *data;
-        size_t len;
+        // Only handle root-level files (no subdirectories yet)
+        if (strchr(index.entries[i].path, '/') != NULL)
+            continue;
 
-        if (tree_serialize(&empty, &data, &len) != 0)
-            return -1;
+        TreeEntry *entry = &tree.entries[tree.count++];
 
-        int rc = object_write(OBJ_TREE, data, len, id_out);
-        free(data);
-        return rc;
+        entry->mode = index.entries[i].mode;
+        entry->hash = index.entries[i].hash;
+        strncpy(entry->name,
+                index.entries[i].path,
+                sizeof(entry->name));
+        entry->name[sizeof(entry->name) - 1] = '\0';
     }
 
-    // Next commit: build flat tree (no subdirectories yet)
-    return -1;
+    void *data;
+    size_t len;
+
+    if (tree_serialize(&tree, &data, &len) != 0)
+        return -1;
+
+    int rc = object_write(OBJ_TREE, data, len, id_out);
+    free(data);
+    return rc;
 }
