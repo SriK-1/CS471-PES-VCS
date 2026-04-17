@@ -15,10 +15,6 @@
 int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out);
 int object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_t *len_out);
 
-// ------------------------------------------------------------
-// commit_parse
-// ------------------------------------------------------------
-
 int commit_parse(const void *data, size_t len, Commit *commit_out) {
     (void)len;
     const char *p = (const char *)data;
@@ -62,10 +58,6 @@ int commit_parse(const void *data, size_t len, Commit *commit_out) {
     return 0;
 }
 
-// ------------------------------------------------------------
-// commit_serialize
-// ------------------------------------------------------------
-
 int commit_serialize(const Commit *commit, void **data_out, size_t *len_out) {
 
     char tree_hex[HASH_HEX_SIZE + 1];
@@ -101,10 +93,6 @@ int commit_serialize(const Commit *commit, void **data_out, size_t *len_out) {
     return 0;
 }
 
-// ------------------------------------------------------------
-// commit_walk
-// ------------------------------------------------------------
-
 int commit_walk(commit_walk_fn callback, void *ctx) {
 
     ObjectID id;
@@ -137,10 +125,6 @@ int commit_walk(commit_walk_fn callback, void *ctx) {
 
     return 0;
 }
-
-// ------------------------------------------------------------
-// head_read
-// ------------------------------------------------------------
 
 int head_read(ObjectID *id_out) {
 
@@ -178,22 +162,14 @@ int head_read(ObjectID *id_out) {
     return hex_to_hash(line, id_out);
 }
 
-// ------------------------------------------------------------
-// head_update
-// ------------------------------------------------------------
-
 int head_update(const ObjectID *new_commit) {
 
     FILE *f = fopen(HEAD_FILE, "r");
-    if (!f) {
-        fprintf(stderr, "error: cannot read HEAD\n");
-        return -1;
-    }
+    if (!f) return -1;
 
     char line[512];
     if (!fgets(line, sizeof(line), f)) {
         fclose(f);
-        fprintf(stderr, "error: failed to read HEAD\n");
         return -1;
     }
     fclose(f);
@@ -215,10 +191,7 @@ int head_update(const ObjectID *new_commit) {
              "%s.tmp", target_path);
 
     f = fopen(tmp_path, "w");
-    if (!f) {
-        fprintf(stderr, "error: failed to update branch reference\n");
-        return -1;
-    }
+    if (!f) return -1;
 
     char hex[HASH_HEX_SIZE + 1];
     hash_to_hex(new_commit, hex);
@@ -229,40 +202,16 @@ int head_update(const ObjectID *new_commit) {
     fsync(fileno(f));
     fclose(f);
 
-    if (rename(tmp_path, target_path) != 0) {
-        fprintf(stderr, "error: rename failed during head update\n");
-        return -1;
-    }
-
-    return 0;
+    return rename(tmp_path, target_path);
 }
-
-// ------------------------------------------------------------
-// commit_create
-// ------------------------------------------------------------
 
 int commit_create(const char *message,
                   ObjectID *commit_id_out) {
 
-    if (!message || strlen(message) == 0) {
-        fprintf(stderr, "error: commit message cannot be empty\n");
-        return -1;
-    }
-
-    Index index;
-    if (index_load(&index) != 0)
-        return -1;
-
-    if (index.count == 0) {
-        fprintf(stderr, "error: nothing staged for commit\n");
-        return -1;
-    }
-
     ObjectID tree_id;
-    if (tree_from_index(&tree_id) != 0) {
-        fprintf(stderr, "error: failed to build tree\n");
+
+    if (tree_from_index(&tree_id) != 0)
         return -1;
-    }
 
     Commit c;
     c.tree = tree_id;
