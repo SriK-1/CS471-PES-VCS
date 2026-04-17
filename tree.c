@@ -9,6 +9,8 @@
 #include <dirent.h>
 #include <sys/stat.h>
 
+int object_write(ObjectType type, const void *data, size_t len, ObjectId *id_out);
+
 #define MODE_FILE      0100644
 #define MODE_EXEC      0100755
 #define MODE_DIR       0040000
