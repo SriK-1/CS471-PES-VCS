@@ -232,9 +232,18 @@ int head_update(const ObjectID *new_commit) {
 int commit_create(const char *message,
                   ObjectID *commit_id_out) {
 
-    // new validation
     if (!message || strlen(message) == 0) {
         fprintf(stderr, "error: commit message cannot be empty\n");
+        return -1;
+    }
+
+    // new: prevent empty index commit
+    Index index;
+    if (index_load(&index) != 0)
+        return -1;
+
+    if (index.count == 0) {
+        fprintf(stderr, "error: nothing staged for commit\n");
         return -1;
     }
 
