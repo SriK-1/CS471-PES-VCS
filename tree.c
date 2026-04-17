@@ -9,22 +9,15 @@
 #include <dirent.h>
 #include <sys/stat.h>
 
-int object_write(ObjectType type, const void *data, size_t len, ObjectId *id_out);
+int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out);
 
-#define MODE_FILE      0100644
-#define MODE_EXEC      0100755
-#define MODE_DIR       0040000
+#define MODE_FILE  0100644
+#define MODE_EXEC  0100755
+#define MODE_DIR   0040000
 
-// ─── PROVIDED ───────────────────────────────────────────────────────────────
-
-uint32_t get_file_mode(const char *path) {
-    struct stat st;
-    if (lstat(path, &st) != 0) return 0;
-
-    if (S_ISDIR(st.st_mode))  return MODE_DIR;
-    if (st.st_mode & S_IXUSR) return MODE_EXEC;
-    return MODE_FILE;
-}
+// ------------------------------------------------------------
+// tree_parse
+// ------------------------------------------------------------
 
 int tree_parse(const void *data, size_t len, Tree *tree_out) {
     tree_out->count = 0;
@@ -64,6 +57,10 @@ int tree_parse(const void *data, size_t len, Tree *tree_out) {
     return 0;
 }
 
+// ------------------------------------------------------------
+// tree_serialize
+// ------------------------------------------------------------
+
 static int compare_tree_entries(const void *a, const void *b) {
     return strcmp(((const TreeEntry *)a)->name,
                   ((const TreeEntry *)b)->name);
@@ -76,18 +73,28 @@ int tree_serialize(const Tree *tree, void **data_out, size_t *len_out) {
     if (!buffer) return -1;
 
     Tree sorted_tree = *tree;
-    qsort(sorted_tree.entries, sorted_tree.count,
-          sizeof(TreeEntry), compare_tree_entries);
+    qsort(sorted_tree.entries,
+          sorted_tree.count,
+          sizeof(TreeEntry),
+          compare_tree_entries);
 
     size_t offset = 0;
+
     for (int i = 0; i < sorted_tree.count; i++) {
+
         const TreeEntry *entry = &sorted_tree.entries[i];
 
         int written = sprintf((char *)buffer + offset,
-                              "%o %s", entry->mode, entry->name);
+                              "%o %s",
+                              entry->mode,
+                              entry->name);
+
         offset += written + 1;
 
-        memcpy(buffer + offset, entry->hash.hash, HASH_SIZE);
+        memcpy(buffer + offset,
+               entry->hash.hash,
+               HASH_SIZE);
+
         offset += HASH_SIZE;
     }
 
@@ -96,7 +103,9 @@ int tree_serialize(const Tree *tree, void **data_out, size_t *len_out) {
     return 0;
 }
 
-// ─── PHASE 2: RECURSIVE TREE BUILDING ───────────────────────────────────────
+// ------------------------------------------------------------
+// recursive build_tree
+// ------------------------------------------------------------
 
 static int build_tree(IndexEntry *entries,
                       int count,
@@ -114,14 +123,16 @@ static int build_tree(IndexEntry *entries,
             continue;
 
         const char *rest = entries[i].path + prefix_len;
-
         if (*rest == '/')
             rest++;
 
         const char *slash = strchr(rest, '/');
 
         if (!slash) {
-            // Regular file
+
+            if (tree.count >= MAX_TREE_ENTRIES)
+                return -1;
+
             TreeEntry *entry = &tree.entries[tree.count++];
             entry->mode = entries[i].mode;
             entry->hash = entries[i].hash;
@@ -129,13 +140,12 @@ static int build_tree(IndexEntry *entries,
             entry->name[sizeof(entry->name) - 1] = '\0';
         }
         else {
-            // Directory
+
             char dirname[256];
             size_t len = slash - rest;
             strncpy(dirname, rest, len);
             dirname[len] = '\0';
 
-            // Check if already added
             int exists = 0;
             for (int j = 0; j < tree.count; j++) {
                 if (strcmp(tree.entries[j].name, dirname) == 0) {
@@ -145,13 +155,19 @@ static int build_tree(IndexEntry *entries,
             }
 
             if (!exists) {
+
+                if (tree.count >= MAX_TREE_ENTRIES)
+                    return -1;
+
                 char new_prefix[512];
                 snprintf(new_prefix, sizeof(new_prefix),
                          "%s%s/", prefix, dirname);
 
                 ObjectID sub_id;
-                if (build_tree(entries, count,
-                               new_prefix, &sub_id) != 0)
+                if (build_tree(entries,
+                               count,
+                               new_prefix,
+                               &sub_id) != 0)
                     return -1;
 
                 TreeEntry *entry = &tree.entries[tree.count++];
@@ -175,11 +191,18 @@ static int build_tree(IndexEntry *entries,
     return rc;
 }
 
+// ------------------------------------------------------------
+// tree_from_index
+// ------------------------------------------------------------
+
 int tree_from_index(ObjectID *id_out) {
 
     Index index;
-    if (index_load(&index) != 0)
+
+    if (index_load(&index) != 0) {
+        fprintf(stderr, "error: failed to load index\n");
         return -1;
+    }
 
     return build_tree(index.entries,
                       index.count,
