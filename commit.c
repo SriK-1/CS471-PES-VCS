@@ -237,7 +237,6 @@ int commit_create(const char *message,
         return -1;
     }
 
-    // new: prevent empty index commit
     Index index;
     if (index_load(&index) != 0)
         return -1;
@@ -248,9 +247,11 @@ int commit_create(const char *message,
     }
 
     ObjectID tree_id;
-
-    if (tree_from_index(&tree_id) != 0)
+    int tree_rc = tree_from_index(&tree_id);
+    if (tree_rc != 0) {
+        fprintf(stderr, "error: failed to build tree\n");
         return -1;
+    }
 
     Commit c;
     c.tree = tree_id;
