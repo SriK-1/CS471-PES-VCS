@@ -12,13 +12,12 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-// Forward declarations
 int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out);
 int object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_t *len_out);
 
-// ─────────────────────────────────────────────
-// PROVIDED FUNCTIONS (unchanged)
-// ─────────────────────────────────────────────
+// ------------------------------------------------------------
+// commit_parse
+// ------------------------------------------------------------
 
 int commit_parse(const void *data, size_t len, Commit *commit_out) {
     (void)len;
@@ -63,6 +62,10 @@ int commit_parse(const void *data, size_t len, Commit *commit_out) {
     return 0;
 }
 
+// ------------------------------------------------------------
+// commit_serialize
+// ------------------------------------------------------------
+
 int commit_serialize(const Commit *commit, void **data_out, size_t *len_out) {
 
     char tree_hex[HASH_HEX_SIZE + 1];
@@ -98,6 +101,10 @@ int commit_serialize(const Commit *commit, void **data_out, size_t *len_out) {
     return 0;
 }
 
+// ------------------------------------------------------------
+// commit_walk
+// ------------------------------------------------------------
+
 int commit_walk(commit_walk_fn callback, void *ctx) {
 
     ObjectID id;
@@ -130,6 +137,10 @@ int commit_walk(commit_walk_fn callback, void *ctx) {
 
     return 0;
 }
+
+// ------------------------------------------------------------
+// head_read
+// ------------------------------------------------------------
 
 int head_read(ObjectID *id_out) {
 
@@ -166,6 +177,10 @@ int head_read(ObjectID *id_out) {
 
     return hex_to_hash(line, id_out);
 }
+
+// ------------------------------------------------------------
+// head_update
+// ------------------------------------------------------------
 
 int head_update(const ObjectID *new_commit) {
 
@@ -210,12 +225,18 @@ int head_update(const ObjectID *new_commit) {
     return rename(tmp_path, target_path);
 }
 
-// ─────────────────────────────────────────────
-// implement commit_create
-// ─────────────────────────────────────────────
+// ------------------------------------------------------------
+// commit_create
+// ------------------------------------------------------------
 
 int commit_create(const char *message,
                   ObjectID *commit_id_out) {
+
+    // new validation
+    if (!message || strlen(message) == 0) {
+        fprintf(stderr, "error: commit message cannot be empty\n");
+        return -1;
+    }
 
     ObjectID tree_id;
 
