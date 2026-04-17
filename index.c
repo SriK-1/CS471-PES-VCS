@@ -51,7 +51,7 @@ int index_status(const Index *index) {
     return 0;
 }
 
-// ─── PHASE 3: STEP 1 ────────────────────────────────────────────────────────
+// ─── PHASE 3: index_load ─────────────────────────────────────────────────────
 
 int index_load(Index *index) {
 
@@ -59,8 +59,7 @@ int index_load(Index *index) {
 
     FILE *f = fopen(INDEX_FILE, "r");
     if (!f) {
-        // No index file yet = empty index
-        return 0;
+        return 0;  // No index file yet
     }
 
     while (index->count < MAX_INDEX_ENTRIES) {
@@ -91,10 +90,53 @@ int index_load(Index *index) {
     return 0;
 }
 
-// Not implemented yet
-int index_save(const Index *index) {
-    return -1;
+// ─── PHASE 3: index_save ─────────────────────────────────────────────────────
+
+static int compare_index_entries(const void *a, const void *b) {
+    const IndexEntry *ea = a;
+    const IndexEntry *eb = b;
+    return strcmp(ea->path, eb->path);
 }
+
+int index_save(const Index *index) {
+
+    // Make sorted copy
+    Index sorted = *index;
+    qsort(sorted.entries, sorted.count,
+          sizeof(IndexEntry),
+          compare_index_entries);
+
+    char tmp_path[512];
+    snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", INDEX_FILE);
+
+    FILE *f = fopen(tmp_path, "w");
+    if (!f)
+        return -1;
+
+    for (int i = 0; i < sorted.count; i++) {
+
+        char hash_hex[HASH_HEX_SIZE + 1];
+        hash_to_hex(&sorted.entries[i].hash, hash_hex);
+
+        fprintf(f, "%o %s %lu %u %s\n",
+                sorted.entries[i].mode,
+                hash_hex,
+                sorted.entries[i].mtime_sec,
+                sorted.entries[i].size,
+                sorted.entries[i].path);
+    }
+
+    fflush(f);
+    fsync(fileno(f));
+    fclose(f);
+
+    if (rename(tmp_path, INDEX_FILE) != 0)
+        return -1;
+
+    return 0;
+}
+
+// ─── PHASE 3: index_add (not implemented yet) ──────────────────────────────
 
 int index_add(Index *index, const char *path) {
     return -1;
