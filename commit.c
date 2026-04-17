@@ -185,11 +185,15 @@ int head_read(ObjectID *id_out) {
 int head_update(const ObjectID *new_commit) {
 
     FILE *f = fopen(HEAD_FILE, "r");
-    if (!f) return -1;
+    if (!f) {
+        fprintf(stderr, "error: cannot read HEAD\n");
+        return -1;
+    }
 
     char line[512];
     if (!fgets(line, sizeof(line), f)) {
         fclose(f);
+        fprintf(stderr, "error: failed to read HEAD\n");
         return -1;
     }
     fclose(f);
@@ -211,7 +215,10 @@ int head_update(const ObjectID *new_commit) {
              "%s.tmp", target_path);
 
     f = fopen(tmp_path, "w");
-    if (!f) return -1;
+    if (!f) {
+        fprintf(stderr, "error: failed to update branch reference\n");
+        return -1;
+    }
 
     char hex[HASH_HEX_SIZE + 1];
     hash_to_hex(new_commit, hex);
@@ -222,7 +229,12 @@ int head_update(const ObjectID *new_commit) {
     fsync(fileno(f));
     fclose(f);
 
-    return rename(tmp_path, target_path);
+    if (rename(tmp_path, target_path) != 0) {
+        fprintf(stderr, "error: rename failed during head update\n");
+        return -1;
+    }
+
+    return 0;
 }
 
 // ------------------------------------------------------------
@@ -247,8 +259,7 @@ int commit_create(const char *message,
     }
 
     ObjectID tree_id;
-    int tree_rc = tree_from_index(&tree_id);
-    if (tree_rc != 0) {
+    if (tree_from_index(&tree_id) != 0) {
         fprintf(stderr, "error: failed to build tree\n");
         return -1;
     }
